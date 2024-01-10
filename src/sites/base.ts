@@ -31,16 +31,16 @@ abstract class LiveSite {
   abstract getRecommendRooms(page: number): Promise<LiveCategoryResult>
 
   // 读取房间详情
-  abstract getRoomDetail({ roomId }: { roomId: string }): Promise<LiveRoomDetail>
+  abstract getRoomDetail(roomId: string): Promise<LiveRoomDetail>
 
   // 读取房间清晰度
-  abstract getPlayQualites({ detail }: { detail: LiveRoomDetail }): Promise<LivePlayQuality[]>
+  abstract getPlayQualites(detail: LiveRoomDetail): Promise<LivePlayQuality[]>
 
   // 读取播放链接
-  abstract getPlayUrls({ detail, quality }: { detail: LiveRoomDetail, quality: LivePlayQuality }): Promise<string[]>
+  abstract getPlayUrls(detail: LiveRoomDetail, quality: LivePlayQuality): Promise<string[]>
 
   // 查询直播状态
-  abstract getLiveStatus({ roomId }: { roomId: string }): Promise<boolean>
+  abstract getLiveStatus(roomId: string): Promise<boolean>
 }
 
 export default LiveSite

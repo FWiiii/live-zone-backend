@@ -68,11 +68,9 @@ export interface LiveRoomDetail {
   /// 状态
   status: boolean
   /// 附加信息
-  data: any
-  /// 弹幕附加信息
-  danmakuData: any
+  data?: any
   /// 是否录播
-  isRecord: boolean
+  isRecord?: boolean
   /// 链接
   url: string
 }
