@@ -5,6 +5,20 @@ import LiveSite from './base'
 class BilibiliSite extends LiveSite {
   id = 'bilibili'
   name = '哔哩哔哩直播'
+  cookies: any = []
+
+  constructor() {
+    super()
+    this.getCookies()
+  }
+
+  getCookies() {
+    axios.get('https://bilibili.com').then((res) => {
+      const cookies = res.headers.get('set-cookie')
+      if (cookies)
+        this.cookies = cookies
+    })
+  }
 
   async getCategories(): Promise<LiveCategory[]> {
     const response = await axios.get('https://api.live.bilibili.com/room/v1/Area/getList', {
@@ -12,26 +26,24 @@ class BilibiliSite extends LiveSite {
         need_entrance: 1,
         parent_id: 0,
       },
+      headers: {
+        cookie: this.cookies,
+      },
     })
     const result = response.data.data
-    const categories: LiveCategory[] = []
-    result.forEach((item: any) => {
-      const subs: LiveSubCategory[] = []
-      item.list.forEach((subItem: any) => {
-        subs.push({
-          id: subItem.id,
-          name: subItem.name ?? '',
-          parentId: subItem.parent_id ?? '',
-          pic: subItem.pic,
-        })
-      })
-      categories.push({
-        children: subs,
+    const categories: LiveCategory[] = result.map((item: any) => {
+      const children = item.list.map((subItem: any) => ({
+        id: subItem.id,
+        name: subItem.name ?? '',
+        parentId: subItem.parent_id ?? '',
+        pic: subItem.pic,
+      }))
+      return {
+        children,
         id: item.id,
         name: item.name ?? '',
-      })
+      }
     })
-
     return categories
   }
 
@@ -44,27 +56,24 @@ class BilibiliSite extends LiveSite {
         sort_type: '',
         page,
       },
+      headers: {
+        cookie: this.cookies,
+      },
     })
     const result = response.data.data
     const hasMore = result.has_more === 1
-    const items: LiveRoomItem[] = []
-    result.list.forEach((item: any) => {
-      const roomItem = {
-        roomId: item.roomid,
-        title: item.title,
-        cover: item.cover,
-        userName: item.uname,
-        online: item.online ?? 0,
-      }
-      items.push(roomItem)
-    })
+    const items: LiveRoomItem[] = result.list.map((item: any) => ({
+      roomId: item.roomid,
+      title: item.title,
+      cover: item.cover,
+      userName: item.uname,
+      online: item.online ?? 0,
+    }))
 
     return { hasMore, items }
   }
 
   async getPlayQualites(detail: LiveRoomDetail): Promise<LivePlayQuality[]> {
-    const qualities: LivePlayQuality[] = []
-
     const response = await axios.get('https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo', {
       params: {
         room_id: detail.roomId,
@@ -73,6 +82,9 @@ class BilibiliSite extends LiveSite {
         codec: '0,1',
         platform: 'web',
       },
+      headers: {
+        cookie: this.cookies,
+      },
     })
     const result = response.data
     const qualitiesMap: { [key: number]: string } = {}
@@ -80,15 +92,12 @@ class BilibiliSite extends LiveSite {
       qualitiesMap[item.qn ?? 0]
           = item.desc
     }
-    for (const item of result.data.playurl_info.playurl.stream[0]
-      .format[0].codec[0].accept_qn) {
-      const qualityItem: LivePlayQuality = {
+    const qualities: LivePlayQuality[] = result.data.playurl_info.playurl.stream[0].format[0].codec[0].accept_qn
+      .map((item: any) => ({
         quality: qualitiesMap[item] ?? '未知清晰度',
         data: item,
         sort: 0,
-      }
-      qualities.push(qualityItem)
-    }
+      }))
     return qualities
   }
 
@@ -96,6 +105,9 @@ class BilibiliSite extends LiveSite {
     const response = await axios.get('https://api.live.bilibili.com/xlive/web-room/v1/index/getH5InfoByRoom', {
       params: {
         room_id: roomId,
+      },
+      headers: {
+        cookie: this.cookies,
       },
     })
     const result = response.data
@@ -114,8 +126,6 @@ class BilibiliSite extends LiveSite {
   }
 
   async searchRooms(keyword: string, page: number = 1): Promise<LiveSearchRoomResult> {
-    const cookieRes = await axios.get('https://bilibili.com')
-    const cookies = cookieRes.headers.get('set-cookie')
     const response = await axios.get('https://api.bilibili.com/x/web-interface/search/type?context=&search_type=live&cover_type=user_cover', {
       params: {
         order: '',
@@ -128,30 +138,23 @@ class BilibiliSite extends LiveSite {
         page,
       },
       headers: {
-        cookie: cookies,
+        cookie: this.cookies,
       },
     })
     const result = response.data
-    const items: LiveRoomItem[] = []
-    for (const item of result.data.result.live_room ?? []) {
-      let title = item.title
-      // 移除title中的<em></em>标签
-      title = title.replace(/<em[^>]*>([^<]*)<\/em>/g, '$1')
-      const roomItem: LiveRoomItem = {
+    const items: LiveRoomItem[] = (result.data.result.live_room ?? []).map((item: any) => {
+      return {
         roomId: item.roomid,
-        title,
+        title: item.title.replace(/<em[^>]*>([^<]*)<\/em>/g, '$1'),
         cover: `https:${item.cover}@400w.jpg`,
         userName: item.uname,
         online: item.online ?? 0,
       }
-      items.push(roomItem)
-    }
+    })
     return { hasMore: items.length >= 40, items }
   }
 
   async searchAnchors(keyword: string, page: number = 1): Promise<LiveSearchAnchorResult> {
-    const cookieRes = await axios.get('https://bilibili.com')
-    const cookies = cookieRes.headers.get('set-cookie')
     const response = await axios.get('https://api.bilibili.com/x/web-interface/search/type?context=&search_type=live_user&cover_type=user_cover', {
       params: {
         order: '',
@@ -164,23 +167,18 @@ class BilibiliSite extends LiveSite {
         page,
       },
       headers: {
-        cookie: cookies,
+        cookie: this.cookies,
       },
     })
     const result = response.data
-    const items: LiveAnchorItem[] = []
-    for (const item of result.data.result ?? []) {
-      let uname = item.uname.toString()
-      // 移除title中的<em></em>标签
-      uname = uname.replace(/<em[^>]*>([^<]*)<\/em>/g, '$1')
-      const anchorItem = {
+    const items: LiveAnchorItem[] = (result.data.result ?? []).map((item: any) => {
+      return {
         roomId: item.roomid.toString(),
         avatar: `https:${item.uface}@400w.jpg`,
-        userName: uname,
+        userName: item.uname.replace(/<em[^>]*>([^<]*)<\/em>/g, '$1'),
         liveStatus: item.is_live,
       }
-      items.push(anchorItem)
-    }
+    })
     return { hasMore: items.length >= 40, items }
   }
 
@@ -194,27 +192,26 @@ class BilibiliSite extends LiveSite {
           page_size: 30,
           page,
         },
+        headers: {
+          cookie: this.cookies,
+        },
       },
     )
 
     const result = response.data
     const hasMore = result.data.list.length > 0
-    const items: LiveRoomItem[] = []
-    for (const item of result.data.list) {
-      const roomItem = {
-        roomId: item.roomid,
-        title: item.title,
-        cover: `${item.cover}@400w.jpg`,
-        userName: item.uname,
-        online: item.online ?? 0,
-      }
-      items.push(roomItem)
-    }
+    const items: LiveRoomItem[] = result.data.list.map((item: any) => ({
+      roomId: item.roomid,
+      title: item.title,
+      cover: `${item.cover}@400w.jpg`,
+      userName: item.uname,
+      online: item.online ?? 0,
+    }))
     return { hasMore, items }
   }
 
   async getPlayUrls(detail: LiveRoomDetail, quality: LivePlayQuality): Promise<string[]> {
-    const urls: string[] = []
+    // const urls: string[] = []
     const response = await axios.get(
       'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo',
       {
@@ -226,46 +223,37 @@ class BilibiliSite extends LiveSite {
           platform: 'web',
           qn: quality.data,
         },
+        headers: {
+          cookie: this.cookies,
+        },
       },
     )
 
     const result = response.data
-
     const streamList = result.data.playurl_info.playurl.stream
-    for (const streamItem of streamList) {
-      const formatList = streamItem.format
-      for (const formatItem of formatList) {
-        const codecList = formatItem.codec
-        for (const codecItem of codecList) {
-          const urlList = codecItem.url_info
-          const baseUrl = codecItem.base_url
-          for (const urlItem of urlList) {
-            urls.push(
-              `${urlItem.host}${baseUrl}${urlItem.extra}`,
-            )
-          }
-        }
-      }
-    }
+    const urls: string[] = streamList.flatMap((streamItem: { format: any[] }) =>
+      streamItem.format.flatMap((formatItem: { codec: any[] }) =>
+        formatItem.codec.flatMap((codecItem: { url_info: any[], base_url: any }) =>
+          codecItem.url_info.map((urlItem: { host: any, extra: any }) =>
+            `${urlItem.host}${codecItem.base_url}${urlItem.extra}`,
+          ),
+        ),
+      ),
+    )
     // 对链接进行排序，包含mcdn的在后
-    urls.sort((a, _b) => {
-      if (a.includes('mcdn'))
-        return 1
-      else
-        return -1
-    })
+    urls.sort((a, _b) => (a.includes('mcdn') ? 1 : -1))
     return urls
   }
 
   async getLiveStatus(roomId: string): Promise<boolean> {
-    const response = await axios.get(
-      'https://api.live.bilibili.com/room/v1/Room/get_info',
-      {
-        params: {
-          room_id: roomId,
-        },
+    const response = await axios.get('https://api.live.bilibili.com/room/v1/Room/get_info', {
+      params: {
+        room_id: roomId,
       },
-    )
+      headers: {
+        cookie: this.cookies,
+      },
+    })
     const result = response.data
     return (result.data.live_status ?? 0) === 1
   }
